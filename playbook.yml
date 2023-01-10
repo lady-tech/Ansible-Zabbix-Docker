@@ -1,0 +1,162 @@
+---
+- hosts: zabbix-server
+  become: true
+  tasks:
+    - name: Include Vars File
+      include_vars: ./vars.yml
+
+    - name: Update Repositories
+      apt:
+       update_cache: yes
+
+    - name: Install Required System Packages
+      apt:
+       pkg:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - software-properties-common
+        - python3-pip=20.3.4-4+deb11u1
+        - virtualenv=20.4.0+ds-2+deb11u1
+        - python3-setuptools=52.0.0-4
+        - gnupg=2.2.27-2+deb11u2
+        - lsb-release=11.1.0
+       state: present
+
+
+    - name: Remove Old Key Docker Files
+      ansible.builtin.file:
+       path: /etc/apt/keyrings/docker.gpg
+       state: absent
+
+    - name: Remove Old Source Docker Files
+      ansible.builtin.file:
+       path: /etc/apt/sources.list.d/docker.list
+       state: absent
+
+    - name: Create Directory For keyrings
+      file:
+       path: /etc/apt/keyrings
+       state: directory
+
+
+    - name: Add Docker GPG apt Key
+      shell: 'curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg'
+
+    - name: Add Docker Repository
+      shell: 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian  $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null'
+
+    - name: Update Repositories After Docker Repository
+      apt:
+       update_cache: yes
+
+    - name:  Install Docker-ce
+      apt:
+       name: "docker-ce={{docker_version}}"
+
+
+    - name: Create Nginx Volume
+      docker_volume:
+       name: nginx-data
+
+    - name: Conpy Nginx Config File
+      copy:
+        src: ./files/nginx.conf
+        dest: /var/lib/docker/volumes/nginx-data/_data/nginx.conf
+
+    - name: Create Certbot Volume
+      docker_volume:
+       name: certbot-data
+
+    - name: Include Certbot Task
+      include_tasks: certbot.yml
+
+
+    - name: Create Mysql Volume
+      docker_volume:
+       name: mysql-data
+
+    - name: Conpy MYSQL Config File
+      copy:
+        src: ./files/my.cnf
+        dest: /var/lib/docker/volumes/mysql-data/_data/my.cnf
+
+    - name: Create Network
+      docker_network:
+       name: vira
+
+
+    - name: Create Network
+      docker_network:
+       name: ladytech
+
+    - name: Create MYSQL Container
+      community.docker.docker_container:
+        name: "mysql-server"
+        image: "mysql:8.0"
+        restart_policy: "always"
+        env:
+          MYSQL_DATABASE: "zabbix"
+          MYSQL_USER: "zabbix"
+          MYSQL_PASSWORD: "ladytech@2022-11"
+          MYSQL_ROOT_PASSWORD: "ladytech@2022-11"
+          --character-set-server: "utf8"
+          --collation-server: "utf8_bin"
+          default-authentication-plugin: "mysql_native_password"
+        restart: true
+        volumes:
+        - mysql-data:/var/lib/mysql
+        networks:
+        - name: ladytech
+
+    - name: Create Gateway Container
+      community.docker.docker_container:
+        name: "zabbix-gateway"
+        image: "zabbix/zabbix-java-gateway:alpine-6.2.4"
+        restart_policy: "always"
+        restart: true
+        ports:
+         - "10052:10052"
+        networks:
+        - name: ladytech
+
+    - name: Create Zabbix Server Mysql Container
+      community.docker.docker_container:
+        name: "zabbix-server-mysql"
+        image: "zabbix/zabbix-server-mysql:alpine-6.2.4"
+        restart_policy: "always"
+        hostname: zabbix-server.ladytechtarh.ir
+        env:
+          DB_SERVER_HOST: "mysql-server"
+          MYSQL_DATABASE: "zabbix"
+          MYSQL_USER: "zabbix"
+          MYSQL_PASSWORD: "ladytech@2022-11"
+          MYSQL_ROOT_PASSWORD: "ladytech@2022-11"
+          ZBX_JAVAGATEWAY: "zabbix-gateway"
+        restart: true
+        ports:
+         - "10051:10051"
+        networks:
+        - name: ladytech
+
+    - name: Create Zabbix Web Nginx Mysql Container
+      community.docker.docker_container:
+        name: "zabbix-web-nginx-mysql"
+        image: "zabbix/zabbix-web-nginx-mysql:alpine-6.2.4"
+        restart_policy: "always"
+        hostname: zabbix.ladytechtarh.ir
+        env:
+          DB_SERVER_HOST: "mysql-server"
+          MYSQL_DATABASE: "zabbix"
+          MYSQL_USER: "zabbix"
+          MYSQL_PASSWORD: "ladytech@2022-11"
+          MYSQL_ROOT_PASSWORD: "ladytech@2022-11"
+        restart: true
+        ports:
+         - "80:80"
+         - "443:443"
+         - "8080:8080"
+        volumes:
+        - nginx-data:/etc/nginx/http.d
+        networks:
+        - name: ladytech

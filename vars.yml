@@ -1,0 +1,12 @@
+########Playbook#############
+docker_version: 5:20.10.21~3-0~debian-bullseye
+########Certbot#############
+certbot_version: v1.32.0
+domain: pdevops.viratarh.ir
+email: par.shams90@gmail.com
+cert_path: /var/lib/docker/volumes/nginx-data/_data
+cert_name: zabbix.ladytech.ir
+#########Aget###############
+host_name: gitlab
+visible_name: gitlab
+ip: 94.182.155.249

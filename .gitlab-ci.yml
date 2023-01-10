@@ -1,0 +1,12 @@
+stages:
+    - deploy
+
+ansible-deploy:
+  only:
+    - main
+  tags:
+    - main
+  stage: deploy
+  script:
+    - cd /var/www/ansible/zabbix
+    - ansible-playbook palybook.yml

@@ -1,0 +1,28 @@
+---
+- hosts: zabbix-agent
+  become: true
+  tasks:
+
+   - name: Create Agent Volume
+     docker_volume:
+      name: agent-data
+
+   - name: Create Zabbix-Agent Container
+     community.docker.docker_container:
+      name: "zabbix-agent"
+      image: zabbix/zabbix-agent:6.2.4-alpine
+      hostname: ladytech_zabbixagent
+      restart_policy: "always"
+      restart: true
+      ports:
+       - "10050:10050"
+
+      volumes:
+        - agent-data:/etc/zabbix/
+      env:
+          ZBX_HOSTNAME: "ladytech_zabbixagent"
+          ZBX_SERVER_HOST: "172.18.0.0/24"
+      networks:
+       - name: ladytech
+      cpus: "2"
+      memory: "2"

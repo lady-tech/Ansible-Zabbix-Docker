@@ -1,0 +1,30 @@
+
+---
+    - name: Include Vars File
+      include_vars: ./vars.yml
+    - name: Create Certbot Container
+      community.docker.docker_container:
+       name: "certbot"
+       image: "certbot/certbot:{{certbot_version}}"
+       ports:
+        - "80:80"
+        - "443:443"
+       command: >-
+         certonly --standalone -d "{{domain}}" -m "{{email}}" --agree-tos  --non-interactive --keep  --cert-name "zabbix.viratarh.ir"
+       restart: true
+       volumes:
+        - certbot-data:/etc/letsencrypt:rw
+
+    - name: Copy Fullchain File On Nginx Volume
+      ansible.builtin.copy:
+       src: /var/lib/docker/volumes/certbot-data/_data/archive/zabbix.viratarh.ir/fullchain1.pem
+       dest: /var/lib/docker/volumes/nginx-data/_data/
+       remote_src: yes
+
+    - name: Copy PrivateKey File On Nginx Volume
+      ansible.builtin.copy:
+       src: /var/lib/docker/volumes/certbot-data/_data/archive/zabbix.viratarh.ir/privkey1.pem
+       dest: /var/lib/docker/volumes/nginx-data/_data/
+       remote_src: yes
+
+
